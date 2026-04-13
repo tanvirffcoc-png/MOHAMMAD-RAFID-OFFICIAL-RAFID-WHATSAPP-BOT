@@ -1,11 +1,11 @@
 {
   "packname": "My Sticker Pack",
   "author": "My Bot",
-  "botName": "Nayan Bot",
-  "botOwner": "Mohammad Nayan",
+  "botName": "TANVIR-MD",
+  "botOwner": "Mohammad Tanvir",
   "autoUpdate": true,
   "runMsg": false,
-  "ownerNumber": "8801615298449",
+  "ownerNumber": "881760234907",
   "botNumber": "bot number",
   "botUid": "bot uid",
   "PREFIX": "/",
@@ -14,8 +14,8 @@
     "your number",
     "your id"
   ],
-  "helpPic": "https://i.postimg.cc/pV7xByGv/IMG-20250106-WA0007.png",
-  "welPic": "https://i.postimg.cc/3JQF0qWf/received-383729254132460.jpg",
+  "helpPic": "https://www.image2url.com/r2/default/images/1776101715133-acdcfe9e-521b-42bb-bb3a-07c24673b4d8.png",
+  "welPic": "https://www.image2url.com/r2/default/images/1776101715133-acdcfe9e-521b-42bb-bb3a-07c24673b4d8.png",
   "PORT": "3000",
   "delay": 100,
   "msg": {
