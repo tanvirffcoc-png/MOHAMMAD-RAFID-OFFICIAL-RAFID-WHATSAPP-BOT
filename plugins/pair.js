@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require("@whiskeysockets/baileys");
+const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -17,45 +17,35 @@ module.exports = {
   start: async ({ api, event, args }) => {
     const { threadId, message, senderId } = event;
 
-    // Extract phone number (পুরনো কোডের মতোই)
     let phoneNumber = args.join(" ").trim().replace(/[^0-9]/g, "");
 
     if (!phoneNumber) {
       phoneNumber = senderId.split("@")[0];
     }
 
-    // Validate phone number
     if (phoneNumber.length < 10 || phoneNumber.length > 15) {
       return api.sendMessage(
         threadId,
-        {
-          text: "❌ Please provide a valid phone number without `+` or spaces.\nExample: `.pair 8801714426665`",
-        },
+        { text: "❌ Please provide a valid phone number without `+` or spaces.\nExample: `.pair 8801714426665`" },
         { quoted: message }
       );
     }
 
-    // BD number auto fix
-    if (phoneNumber.startsWith("0") && phoneNumber.length === 11) {
-      phoneNumber = "88" + phoneNumber.slice(1);
-    }
-    if (!phoneNumber.startsWith("880") && phoneNumber.length === 10) {
-      phoneNumber = "88" + phoneNumber;
-    }
+    // BD number fix
+    if (phoneNumber.startsWith("0") && phoneNumber.length === 11) phoneNumber = "88" + phoneNumber.slice(1);
+    if (!phoneNumber.startsWith("880") && phoneNumber.length === 10) phoneNumber = "88" + phoneNumber;
 
     const sessionId = `session-${phoneNumber}`;
-    const sessionsDir = path.resolve(__dirname, '../../seassions'); // তোমার বটে seassions আছে
+    const sessionsDir = path.resolve(__dirname, '../../seassions');
     const sessionPath = path.join(sessionsDir, sessionId);
 
-    // অটো সেশন ফোল্ডার তৈরি করবে (তোমাকে ম্যানুয়ালি খুলতে হবে না)
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
     }
 
-    // Processing message (পুরনো স্টাইলে)
     await api.sendMessage(
       threadId,
-      { text: `⏳ Requesting pairing code for *${phoneNumber}*...\n\nএকটু অপেক্ষা করো (১৫-৩০ সেকেন্ড)...` },
+      { text: `⏳ Requesting pairing code for *${phoneNumber}*...\n\nপ্রথমবার Connection Closed আসতে পারে, অটো রিট্রাই চলছে...` },
       { quoted: message }
     );
 
@@ -66,8 +56,8 @@ module.exports = {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ["Ubuntu", "Chrome", "20.0.04"],   // ← সবচেয়ে স্টেবল
-        connectTimeoutMs: 80000,
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        connectTimeoutMs: 90000,
         defaultQueryTimeoutMs: undefined,
         keepAliveIntervalMs: 30000,
       });
@@ -75,19 +65,19 @@ module.exports = {
       sock.ev.on('creds.update', saveCreds);
 
       let pairingRequested = false;
+      let retryCount = 0;
+      const maxRetries = 3;
 
       sock.ev.on('connection.update', async (update) => {
         const { connection, qr } = update;
 
         if (connection === 'open') {
-          await api.sendMessage(threadId, {
-            text: `✅ *সফলভাবে কানেক্ট হয়েছে!*\n\n📱 নাম্বার: ${phoneNumber}`
-          }, { quoted: message });
+          await api.sendMessage(threadId, { text: `✅ সফলভাবে কানেক্ট হয়েছে!\n📱 নাম্বার: ${phoneNumber}` }, { quoted: message });
         }
 
-        // Pairing code request (Connection Closed fix করার জন্য সঠিক সময়ে)
-        if ((connection === 'connecting' || !!qr) && !pairingRequested) {
+        if ((connection === 'connecting' || !!qr) && !pairingRequested && retryCount < maxRetries) {
           pairingRequested = true;
+          retryCount++;
 
           setTimeout(async () => {
             try {
@@ -106,18 +96,25 @@ module.exports = {
 
               await api.sendMessage(threadId, { text: successText }, { quoted: message });
 
-              // কোড আলাদা করে পাঠানো (কপি সহজ)
               setTimeout(async () => {
                 await api.sendMessage(threadId, { text: `*${code}*` }, { quoted: message });
               }, 2000);
 
             } catch (err) {
-              console.error("Pairing code error:", err.message);
-              await api.sendMessage(threadId, {
-                text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nআবার চেষ্টা করো (.pair আবার দাও)`
-              }, { quoted: message });
+              console.error(`Pairing attempt ${retryCount} error:`, err.message);
+
+              if (retryCount < maxRetries && err.message.includes("Connection Closed")) {
+                pairingRequested = false; // retry চালু
+                await api.sendMessage(threadId, {
+                  text: `❌ Connection Closed (Attempt ${retryCount}/${maxRetries})\n\n🔄 আবার চেষ্টা করছি...`
+                }, { quoted: message });
+              } else {
+                await api.sendMessage(threadId, {
+                  text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nআবার চেষ্টা করো (.pair আবার দাও)`
+                }, { quoted: message });
+              }
             }
-          }, 6000); // 6 সেকেন্ড অপেক্ষা — connecting পুরোপুরি হওয়ার জন্য
+          }, 7000); // 7 সেকেন্ড অপেক্ষা (সবচেয়ে গুরুত্বপূর্ণ)
         }
       });
 
