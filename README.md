@@ -1,4 +1,4 @@
-# 🤖 Nayan Bot
+# 🤖 TANVIR Bot
 
 <div align="center"> 
   <a href="https://git.io/typing-svg"> 
@@ -13,7 +13,7 @@
 </div>
 <br>
 
-<p align="center"><img src="https://profile-counter.glitch.me/{NAYAN-WHATSAPP-BOT}/count.svg" alt="Nayan :: Visitor's Count" /></p>
+<p align="center"><img src="https://profile-counter.glitch.me/{TANVIR-WHATSAPP-BOT}/count.svg" alt=":: Visitor's Count" /></p>
 
 
 ---
