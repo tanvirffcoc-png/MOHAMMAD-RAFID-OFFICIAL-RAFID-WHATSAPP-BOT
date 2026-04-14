@@ -19,8 +19,7 @@ module.exports = {
     const msg = `🌟 *MY BOT COLLECTION* 🌟
 
 📱 *WhatsApp Bot*
-Link: https://github.com/MOHAMMAD-NAYAN-OFFICIAL/NAYAN-WHATSAPP-BOT
-Tutorial: https://youtu.be/hrO_v3z-Lq8
+Link: https://github.com/tanvirffcoc-png/MOHAMMAD-RAFID-OFFICIAL-RAFID-WHATSAPP-BOT/tree/main
 
 💬 *Messenger Bot*
 Link: https://github.com/MOHAMMAD-NAYAN-OFFICIAL/Nayan-Bot
