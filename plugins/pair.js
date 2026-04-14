@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, Browsers } = require("@whiskeysockets/baileys");
+const { makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason } = require("@whiskeysockets/baileys");
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -11,21 +11,19 @@ module.exports = {
     prefix: true,
     description: "Generate a pairing code to link a new WhatsApp number as a bot session.",
     category: "Utility",
-    credit: "Adapted for RAFID BOT",
+    credit: "Stable version for RAFID BOT",
   },
 
   start: async ({ api, event, args }) => {
     const { threadId, message, senderId } = event;
 
-    // ---------- Phone number formatting ----------
+    // ---------- Format phone number ----------
     let phoneNumber = args.join(" ").trim().replace(/[^0-9]/g, "");
-
-    // If no number provided, use sender's WhatsApp number (without @s.whatsapp.net)
     if (!phoneNumber) {
       phoneNumber = senderId.split("@")[0];
     }
 
-    // Auto-correct Bangladeshi numbers
+    // Auto-correct BD numbers
     if (phoneNumber.startsWith("0") && phoneNumber.length === 11) {
       phoneNumber = "88" + phoneNumber.slice(1);
     }
@@ -33,112 +31,120 @@ module.exports = {
       phoneNumber = "88" + phoneNumber;
     }
 
-    // Validate length
     if (phoneNumber.length < 11 || phoneNumber.length > 15) {
       return api.sendMessage(
         threadId,
-        { text: "❌ Invalid phone number. Please provide a number without `+` or spaces.\nExample: `.pair 8801714426665`" },
+        { text: "❌ Invalid phone number.\nExample: `.pair 8801714426665`" },
         { quoted: message }
       );
     }
 
-    // ---------- Session directory auto-generation ----------
+    // ---------- Auto‑create session directory ----------
     const sessionId = `session-${phoneNumber}`;
-    // Resolve path relative to the bot root (assuming command file is inside commands folder)
     const sessionsDir = path.resolve(__dirname, '../../seassions');
     const sessionPath = path.join(sessionsDir, sessionId);
 
-    // Create sessions directory if it doesn't exist
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
-      console.log(`[PAIR] Created sessions directory: ${sessionsDir}`);
     }
 
-    // Initial response
     await api.sendMessage(
       threadId,
-      { text: `⏳ Requesting pairing code for *${phoneNumber}*...\nPlease wait about 15–25 seconds.` },
+      { text: `⏳ Requesting pairing code for *${phoneNumber}*...\nThis may take up to 30 seconds.` },
       { quoted: message }
     );
 
-    try {
-      // Load or create auth state
-      const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    // ---------- Create WhatsApp socket ----------
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
-      // Create WhatsApp socket
-      const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false,
-        logger: pino({ level: 'silent' }),
-        browser: Browsers.ubuntu("Chrome"),
-        markOnlineOnConnect: false,
-        connectTimeoutMs: 90000,
-        defaultQueryTimeoutMs: undefined,
-        keepAliveIntervalMs: 30000,
-      });
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+      browser: Browsers.ubuntu("Chrome"),            // Can also use Browsers.appropriate("Chrome")
+      markOnlineOnConnect: false,
+      connectTimeoutMs: 90000,
+      defaultQueryTimeoutMs: undefined,
+      keepAliveIntervalMs: 30000,
+      // The following option ensures pairing code works reliably
+      mobile: false,                                 // false is default; keep as false for pairing code
+    });
 
-      // Save credentials on update
-      sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', saveCreds);
 
-      // Wait for the connection to become ready before requesting pairing code
-      sock.ev.on('connection.update', async (update) => {
-        const { connection } = update;
+    let pairingRequested = false;  // Prevent multiple requests
 
-        // When socket reaches 'connecting' state, we can safely request pairing code
-        if (connection === 'connecting') {
-          // Wait a bit more for full readiness
-          setTimeout(async () => {
-            try {
-              const code = await sock.requestPairingCode(phoneNumber);
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
 
-              const successText = `✅ *Pairing Code Generated*\n\n` +
-                `📱 Number: ${phoneNumber}\n` +
-                `🔑 Code: ${code}\n\n` +
-                `*How to link:*\n` +
-                `1. Open WhatsApp on your phone.\n` +
-                `2. Go to *Settings* → *Linked Devices*.\n` +
-                `3. Tap *Link a Device*.\n` +
-                `4. Choose *Link with phone number instead*.\n` +
-                `5. Enter the code: *${code}*\n\n` +
-                `After entering, the bot will be connected to this number.`;
+      // When socket is fully open, we can confirm the session is linked
+      if (connection === 'open') {
+        await api.sendMessage(
+          threadId,
+          { text: `✅ Successfully connected!\nThe bot is now active on *${phoneNumber}*.` },
+          { quoted: message }
+        );
+        console.log(`[PAIR] Session opened for ${phoneNumber}`);
+      }
 
-              await api.sendMessage(threadId, { text: successText }, { quoted: message });
+      // If we receive a QR code (shouldn't happen), notify and ignore
+      if (qr) {
+        console.log(`[PAIR] QR code received unexpectedly for ${phoneNumber}`);
+      }
 
-              // Send the code alone for easy copying
-              setTimeout(async () => {
-                await api.sendMessage(threadId, { text: `*${code}*` }, { quoted: message });
-              }, 2000);
+      // **The key moment: request pairing code when socket is connecting/ready**
+      if (connection === 'connecting' && !pairingRequested) {
+        pairingRequested = true;
 
-              // Confirmation message
-              await api.sendMessage(
-                threadId,
-                { text: `✅ Session saved successfully. The bot is now cloned to *${phoneNumber}*.` },
-                { quoted: message }
-              );
-            } catch (err) {
-              console.error("Pairing error:", err.message);
-              await api.sendMessage(
-                threadId,
-                { text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nPlease restart the bot and try again.` },
-                { quoted: message }
-              );
-            }
-          }, 3000); // 3-second buffer after 'connecting' event
+        // Wait an extra 5 seconds for full handshake (essential for notification to appear)
+        setTimeout(async () => {
+          try {
+            const code = await sock.requestPairingCode(phoneNumber);
+
+            const instructions = `✅ *Pairing Code Generated*\n\n` +
+              `📱 Number: ${phoneNumber}\n` +
+              `🔑 Code: ${code}\n\n` +
+              `*How to link:*\n` +
+              `1. Open WhatsApp on your phone.\n` +
+              `2. Go to *Settings* → *Linked Devices*.\n` +
+              `3. Tap *Link a Device*.\n` +
+              `4. Choose *Link with phone number instead*.\n` +
+              `5. Enter the code: *${code}*\n\n` +
+              `⚠️ A notification should appear automatically. If not, manually go to "Link with phone number instead".`;
+
+            await api.sendMessage(threadId, { text: instructions }, { quoted: message });
+
+            // Send the code separately for easy copying
+            setTimeout(() => {
+              api.sendMessage(threadId, { text: `*${code}*` }, { quoted: message });
+            }, 2000);
+
+            await api.sendMessage(
+              threadId,
+              { text: `✅ Session folder created. The bot will be ready after you enter the code.` },
+              { quoted: message }
+            );
+          } catch (err) {
+            console.error(`[PAIR] Error requesting code:`, err.message);
+            await api.sendMessage(
+              threadId,
+              { text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nPossible reasons:\n- Number already registered with multi‑device.\n- Temporary server issue.\nTry again after a few minutes.` },
+              { quoted: message }
+            );
+          }
+        }, 5000); // 5-second delay ensures socket is ready
+      }
+
+      // Handle disconnection (non‑fatal)
+      if (connection === 'close') {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        console.log(`[PAIR] Connection closed for ${phoneNumber}. Reconnect: ${shouldReconnect}`);
+        if (shouldReconnect) {
+          // Optional: attempt reconnect? Not needed for pairing command.
         }
-
-        // Optional: log connection close (non‑critical)
-        if (connection === 'close') {
-          console.log(`[PAIR] Connection closed for session: ${phoneNumber}`);
-        }
-      });
-
-    } catch (error) {
-      console.error("Pair command fatal error:", error.message);
-      await api.sendMessage(
-        threadId,
-        { text: `❌ An unexpected error occurred.\nError: ${error.message}` },
-        { quoted: message }
-      );
-    }
+      }
+    });
   },
 };
