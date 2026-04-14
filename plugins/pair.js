@@ -11,19 +11,19 @@ module.exports = {
     prefix: true,
     description: "Generate a pairing code to link a new WhatsApp number as a bot session.",
     category: "Utility",
-    credit: "Stable version for RAFID BOT",
+    credit: "Fixed & Stable Version for RAFID BOT",
   },
 
   start: async ({ api, event, args }) => {
     const { threadId, message, senderId } = event;
 
-    // ---------- Format phone number ----------
+    // ---------- ১. ফোন নম্বর ফরম্যাটিং ----------
     let phoneNumber = args.join(" ").trim().replace(/[^0-9]/g, "");
     if (!phoneNumber) {
       phoneNumber = senderId.split("@")[0];
     }
 
-    // Auto-correct BD numbers
+    // বাংলাদেশী নম্বরের জন্য অটো-কারেকশন
     if (phoneNumber.startsWith("0") && phoneNumber.length === 11) {
       phoneNumber = "88" + phoneNumber.slice(1);
     }
@@ -39,7 +39,7 @@ module.exports = {
       );
     }
 
-    // ---------- Auto‑create session directory ----------
+    // ---------- ২. সেশন ফোল্ডার অটো-জেনারেট ----------
     const sessionId = `session-${phoneNumber}`;
     const sessionsDir = path.resolve(__dirname, '../../seassions');
     const sessionPath = path.join(sessionsDir, sessionId);
@@ -54,30 +54,28 @@ module.exports = {
       { quoted: message }
     );
 
-    // ---------- Create WhatsApp socket ----------
+    // ---------- ৩. WhatsApp সকেট তৈরি ----------
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
     const sock = makeWASocket({
       auth: state,
-      printQRInTerminal: false,
+      printQRInTerminal: false, // কোড মোডের জন্য এটি আবশ্যক
       logger: pino({ level: 'silent' }),
-      browser: Browsers.ubuntu("Chrome"),            // Can also use Browsers.appropriate("Chrome")
+      browser: Browsers.macOS("Chrome"), // অথবা Browsers.windows("Chrome")
       markOnlineOnConnect: false,
       connectTimeoutMs: 90000,
       defaultQueryTimeoutMs: undefined,
       keepAliveIntervalMs: 30000,
-      // The following option ensures pairing code works reliably
-      mobile: false,                                 // false is default; keep as false for pairing code
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    let pairingRequested = false;  // Prevent multiple requests
+    let pairingCodeRequested = false;
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
-      // When socket is fully open, we can confirm the session is linked
+      // ✅ সফল কানেকশন
       if (connection === 'open') {
         await api.sendMessage(
           threadId,
@@ -87,16 +85,11 @@ module.exports = {
         console.log(`[PAIR] Session opened for ${phoneNumber}`);
       }
 
-      // If we receive a QR code (shouldn't happen), notify and ignore
-      if (qr) {
-        console.log(`[PAIR] QR code received unexpectedly for ${phoneNumber}`);
-      }
+      // ⭐ মূল পরিবর্তন: qr ইভেন্টের জন্য অপেক্ষা করা
+      if (qr && !pairingCodeRequested) {
+        pairingCodeRequested = true;
 
-      // **The key moment: request pairing code when socket is connecting/ready**
-      if (connection === 'connecting' && !pairingRequested) {
-        pairingRequested = true;
-
-        // Wait an extra 5 seconds for full handshake (essential for notification to appear)
+        // সকেট সম্পূর্ণ রেডি হওয়ার জন্য ২ সেকেন্ড অপেক্ষা
         setTimeout(async () => {
           try {
             const code = await sock.requestPairingCode(phoneNumber);
@@ -114,7 +107,7 @@ module.exports = {
 
             await api.sendMessage(threadId, { text: instructions }, { quoted: message });
 
-            // Send the code separately for easy copying
+            // কোডটি আলাদা করে কপি করার জন্য পাঠানো
             setTimeout(() => {
               api.sendMessage(threadId, { text: `*${code}*` }, { quoted: message });
             }, 2000);
@@ -128,22 +121,19 @@ module.exports = {
             console.error(`[PAIR] Error requesting code:`, err.message);
             await api.sendMessage(
               threadId,
-              { text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nPossible reasons:\n- Number already registered with multi‑device.\n- Temporary server issue.\nTry again after a few minutes.` },
+              { text: `❌ Failed to get pairing code.\nError: ${err.message}\n\nPossible reasons:\n- The number is already linked to another multi-device session.\n- Temporary server issue.\nTry again after a few minutes.` },
               { quoted: message }
             );
           }
-        }, 5000); // 5-second delay ensures socket is ready
+        }, 2000); // ২ সেকেন্ডের সেফটি বাফার
       }
 
-      // Handle disconnection (non‑fatal)
+      // ডিসকানেকশন হ্যান্ডেল
       if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         console.log(`[PAIR] Connection closed for ${phoneNumber}. Reconnect: ${shouldReconnect}`);
-        if (shouldReconnect) {
-          // Optional: attempt reconnect? Not needed for pairing command.
-        }
       }
     });
   },
