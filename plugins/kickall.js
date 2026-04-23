@@ -4,7 +4,7 @@ module.exports = {
     permission: 3,
     prefix: true,
     category: "Moderation",
-    credit: "ZAHID-BOT"
+    credit: "TANVIR-BOT"
     },
     start: async ({ event, api }) => {
     const { threadId, senderId, message } = event;
