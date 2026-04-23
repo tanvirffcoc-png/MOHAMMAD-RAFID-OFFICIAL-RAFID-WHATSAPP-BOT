@@ -196,24 +196,47 @@ module.exports = {
     // Footer
     responseText += `\n*~_Made with love by X-♡Tanvir♡😩🫶_~*`;
     
+    // ─────────────────────────────────────────────────────
+    // 📌 আপনার দেওয়া চ্যানেলের তথ্য (Forwarded ইফেক্ট)
+    // ─────────────────────────────────────────────────────
+    const channelJid = '120363408736391595@newsletter'; // আপনার চ্যানেল JID
+    const channelName = 'TANVIRMD'; // ✅ আপনার পছন্দের চ্যানেল নাম
+
+    // ─────────────────────────────────────────────────────
+    // 📤 মেসেজ পেলোড তৈরি (Forwarded ট্যাগ ও চ্যানেল তথ্যসহ)
+    // ─────────────────────────────────────────────────────
+    const basePayload = {
+        contextInfo: {
+            forwardingScore: 999,            // Forwarded ট্যাগ দেখানোর জন্য
+            isForwarded: true,               // কিছু ভার্সনে প্রয়োজন
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: channelJid,
+                newsletterName: channelName,
+                serverMessageId: 143         // র‌্যান্ডম পজিটিভ সংখ্যা
+            }
+        }
+    };
+
+    // যদি মেনশন প্রয়োজন হয় তাহলে mentionedJid যোগ করা হবে
+    if (mentionUser && sid) {
+        basePayload.contextInfo.mentionedJid = [sid];
+    }
+
     // Send with image if available, otherwise plain text
     try {
-      const response = await axios.get(global.config.helpPic, { responseType: 'stream' });
-      const messagePayload = {
-        image: { stream: response.data },
-        caption: responseText
-      };
-      // যদি মেনশন প্রয়োজন হয়, তাহলে mentions অ্যারে যোগ করুন
-      if (mentionUser && sid) {
-        messagePayload.mentions = [sid];
-      }
-      await api.sendMessage(threadId, messagePayload);
+        const response = await axios.get(global.config.helpPic, { responseType: 'stream' });
+        const messagePayload = {
+            image: { stream: response.data },
+            caption: responseText,
+            ...basePayload
+        };
+        await api.sendMessage(threadId, messagePayload);
     } catch {
-      const textPayload = { text: responseText };
-      if (mentionUser && sid) {
-        textPayload.mentions = [sid];
-      }
-      await api.sendMessage(threadId, textPayload);
+        const textPayload = {
+            text: responseText,
+            ...basePayload
+        };
+        await api.sendMessage(threadId, textPayload);
     }
   },
 };
