@@ -1,11 +1,11 @@
 module.exports = function () {
   return `${global.config.botName} CONNECTED«
 
-Assalamualaykum☘️
+*ᴀꜱꜱᴀʟᴀᴍᴜᴀʟᴀɪᴋᴜᴍ☘️*
 <------------------------------>
 BOT CONNECTED SUCCESSFUL !!!
 
-APPROVAL ALLOW IN THIS GROUP!!!
+*APPROVAL ALLOW IN THIS GROUP!!!*
 <------------------------------>
 
 TO VIEW ANY COMMAND Use👉 ${global.config.PREFIX}help
@@ -22,5 +22,5 @@ AND FOR ANY COMPLAINTS OR CONTACT BOT OPERATOR
 
 DEVELOPER: ${global.config.botOwner}
 
-🔵WHATSAPP NUMBER: wa.me/+${global.config.admin[0] || "8801615298449"}`;
+🔵WHATSAPP NUMBER: wa.me/+${global.config.admin[0] || "8801714426665"}`;
 };
