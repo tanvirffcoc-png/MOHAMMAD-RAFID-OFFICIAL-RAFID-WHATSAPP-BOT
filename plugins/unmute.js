@@ -1,7 +1,7 @@
   module.exports = {
     config: {
       name: 'unmute',
-      aliases: ['ungroupmute', 'unm'],
+      aliases: ['Open', 'unm'],
       permission: 3,
       prefix: 'both',
       description: 'Unmute the group, allowing members to send messages.',
