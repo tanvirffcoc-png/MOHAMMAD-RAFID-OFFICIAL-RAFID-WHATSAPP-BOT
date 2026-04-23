@@ -6,13 +6,14 @@
   "autoUpdate": true,
   "runMsg": false,
   "ownerNumber": "881760234907",
-  "botNumber": "8801776212519",
-  "botUid": "bot uid",
+  "botNumber": "bot number",
+  "botUid": "260481780584667",
   "PREFIX": "/",
   "timeZone": "Asia/Dhaka",
   "admin": [
-    "your number",
-    "your id"
+    "8801776212519",
+    "260481780584667",
+    "260481780584667"
   ],
   "helpPic": "https://www.image2url.com/r2/default/images/1776101715133-acdcfe9e-521b-42bb-bb3a-07c24673b4d8.png",
   "welPic": "https://www.image2url.com/r2/default/images/1776101715133-acdcfe9e-521b-42bb-bb3a-07c24673b4d8.png",
